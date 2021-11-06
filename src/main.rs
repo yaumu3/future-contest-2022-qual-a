@@ -1,4 +1,4 @@
-use rand::prelude::*;
+// use rand::prelude::*;
 use std::io::stdin;
 
 macro_rules! parse_input {
@@ -48,12 +48,14 @@ impl Task {
 struct Resource {
     id: usize,
     assigned_ti: Option<usize>,
+    complete_cnt: usize,
 }
 impl Resource {
     fn new(id: usize) -> Self {
         Self {
             id,
             assigned_ti: None,
+            complete_cnt: 0,
         }
     }
     fn assign_task(&mut self, task: usize) {
@@ -64,6 +66,7 @@ impl Resource {
         assert!(!self.is_available());
         let task = self.assigned_ti.unwrap();
         self.assigned_ti = None;
+        self.complete_cnt += 1;
         task
     }
     fn is_available(&self) -> bool {
@@ -72,7 +75,7 @@ impl Resource {
 }
 
 fn main() {
-    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(71);
+    // let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(71);
 
     let mut input_line = String::new();
     stdin().read_line(&mut input_line).unwrap();
@@ -118,7 +121,7 @@ fn main() {
             .filter(|(_, r)| r.is_available())
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
-        ris.shuffle(&mut rng);
+        ris.sort_by_key(|&ri| n - resources[ri].complete_cnt);
 
         let mut tis = tasks
             .iter()
