@@ -103,9 +103,14 @@ fn main() {
     let r = parse_input!(inputs[3], usize);
 
     // Input diffs
-    for _ in 0..n {
+    let mut diffs = vec![vec![0; k]; n];
+    for diff in diffs.iter_mut() {
         let mut input_line = String::new();
         stdin().read_line(&mut input_line).unwrap();
+        let inputs = input_line.split(' ').collect::<Vec<_>>();
+        for (j, v) in inputs.iter().enumerate() {
+            diff[j] = parse_input!(v, i32);
+        }
     }
 
     // Input edges
