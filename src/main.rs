@@ -120,12 +120,13 @@ fn main() {
             .collect::<Vec<_>>();
         ris.shuffle(&mut rng);
 
-        let tis = tasks
+        let mut tis = tasks
             .iter()
             .enumerate()
             .filter(|(_, t)| t.is_available())
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
+        tis.sort_by_key(|&ti| n - tasks[ti].nxt_tis.len());
 
         let mut assign_cmd = vec![];
         for (&ri, &ti) in ris.iter().zip(tis.iter()) {
