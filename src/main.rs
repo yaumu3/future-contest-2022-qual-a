@@ -229,7 +229,6 @@ fn main() {
         let tau = cur_day as f64 / (DAY_LIMIT - 1) as f64;
         annealer.set_temperture(tau);
 
-        // dbg!(day, &resources, &tasks);
         // Assign tasks
         let mut ris = resources
             .iter()
@@ -283,7 +282,6 @@ fn main() {
             .split(' ')
             .map(|v| parse_input!(v, isize))
             .collect::<Vec<_>>();
-        // dbg!(&freed_resources);
 
         if freed_resources[0] == -1 {
             break;
