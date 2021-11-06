@@ -226,7 +226,7 @@ fn main() {
     let mut cur_day = 0;
     let mut annealer = Annealer::new(3000.0, 600.0);
     loop {
-        let tau = cur_day as f64 / DAY_LIMIT as f64;
+        let tau = cur_day as f64 / (DAY_LIMIT - 1) as f64;
         annealer.set_temperture(tau);
 
         // dbg!(day, &resources, &tasks);
@@ -237,7 +237,6 @@ fn main() {
             .filter(|(_, r)| r.is_available())
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
-        ris.sort_by_key(|&ri| n - resources[ri].history.len());
 
         let mut tis = tasks
             .iter()
@@ -245,14 +244,29 @@ fn main() {
             .filter(|(_, t)| t.is_available())
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
-        tis.sort_by_key(|&ti| n - tasks[ti].nxt_tis.len());
+        tis.sort_by_key(|&ti| tasks[ti].nxt_tis.len());
 
         let mut assign_cmd = vec![];
-        for (&ri, &ti) in ris.iter().zip(tis.iter()) {
+        while !ris.is_empty() && !tis.is_empty() {
+            let ti = tis.pop().unwrap();
+            let ri = {
+                if annealer.accept(-1.0) {
+                    // Assign resource a task with the shortest estimated days required
+                    *ris.iter()
+                        .min_by_key(|&&ri| resources[ri].get_est_elapsed_days(&diffs[ti]))
+                        .unwrap()
+                } else {
+                    *ris.iter()
+                        .max_by_key(|&&ri| resources[ri].history.len())
+                        .unwrap()
+                }
+            };
             resources[ri].assign_task(ti, cur_day);
             tasks[ti].begin();
             assign_cmd.push(ri + 1);
             assign_cmd.push(ti + 1);
+            let idx = ris.iter().position(|&rii| rii == ri).unwrap();
+            ris.remove(idx);
         }
         let assign_len = assign_cmd.len() / 2;
         let assign_cmd = assign_cmd
