@@ -1,4 +1,5 @@
-// use rand::prelude::*;
+use rand::prelude::*;
+use rand_pcg::Mcg128Xsl64;
 use std::io::stdin;
 
 macro_rules! parse_input {
@@ -47,13 +48,26 @@ impl Task {
 #[derive(Debug, Clone)]
 struct Resource {
     id: usize,
+    skills: Vec<i32>,
     assigned_ti: Option<usize>,
     complete_cnt: usize,
 }
 impl Resource {
-    fn new(id: usize) -> Self {
+    fn new(id: usize, skills_cnt: usize, rng: &mut Mcg128Xsl64) -> Self {
+        // Initialize `skills` with random
+        let mut b = vec![0.0; skills_cnt];
+        for b in b.iter_mut() {
+            *b = f64::abs(rng.sample(rand_distr::StandardNormal));
+        }
+        let mul = rng.gen_range(20.0, 60.0) / b.iter().map(|x| x * x).sum::<f64>().sqrt();
+        let mut s = vec![0; skills_cnt];
+        for i in 0..skills_cnt {
+            s[i] = (b[i] * mul).round() as i32;
+        }
+
         Self {
             id,
+            skills: s,
             assigned_ti: None,
             complete_cnt: 0,
         }
@@ -75,14 +89,14 @@ impl Resource {
 }
 
 fn main() {
-    // let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(71);
+    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(71);
 
     let mut input_line = String::new();
     stdin().read_line(&mut input_line).unwrap();
     let inputs = input_line.split(' ').collect::<Vec<_>>();
     let n = parse_input!(inputs[0], usize);
     let m = parse_input!(inputs[1], usize);
-    let _k = parse_input!(inputs[2], usize);
+    let k = parse_input!(inputs[2], usize);
     let r = parse_input!(inputs[3], usize);
 
     // Input diffs
@@ -104,7 +118,10 @@ fn main() {
         edges.push(edge);
     }
 
-    let mut resources = (0..m).map(Resource::new).collect::<Vec<_>>();
+    let mut resources = (0..m)
+        .map(|i| Resource::new(i, k, &mut rng))
+        .collect::<Vec<_>>();
+
     let mut tasks = (0..n).map(Task::new).collect::<Vec<_>>();
     for &(u, v) in &edges {
         tasks[u].nxt_tis.push(v);
@@ -113,6 +130,17 @@ fn main() {
 
     // let mut day = 0;
     loop {
+        // Output estimated skill
+        for (i, res) in resources.iter().enumerate() {
+            let skill_chart = res
+                .skills
+                .iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<_>>()
+                .join(" ");
+            println!("#s {} {}", i + 1, skill_chart);
+        }
+
         // dbg!(day, &resources, &tasks);
         // Assign tasks
         let mut ris = resources
