@@ -1,6 +1,7 @@
 use rand::prelude::*;
 use rand_pcg::Mcg128Xsl64;
 use std::io::stdin;
+const DAY_LIMIT: i32 = 2000;
 
 macro_rules! parse_input {
     ($x:expr, $t:ident) => {
@@ -47,15 +48,18 @@ impl Task {
 
 #[derive(Debug, Clone)]
 struct Resource {
+    rng: Mcg128Xsl64,
     id: usize,
     skills: Vec<i32>,
     // ti, start_day
-    assigned: Option<(usize, usize)>,
+    assigned: Option<(usize, i32)>,
     // ti, elapsed_days
-    history: Vec<(usize, usize)>,
+    history: Vec<(usize, i32)>,
 }
 impl Resource {
-    fn new(id: usize, skills_cnt: usize, rng: &mut Mcg128Xsl64) -> Self {
+    fn new(id: usize, skills_cnt: usize) -> Self {
+        let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(id as u64);
+
         // Initialize `skills` with random
         let mut b = vec![0.0; skills_cnt];
         for b in b.iter_mut() {
@@ -68,17 +72,27 @@ impl Resource {
         }
 
         Self {
+            rng,
             id,
             skills: s,
             assigned: None,
             history: vec![],
         }
     }
-    fn assign_task(&mut self, ti: usize, start_day: usize) {
+    fn print_skills(&self) {
+        let skill_chart = self
+            .skills
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        println!("#s {} {}", self.id + 1, skill_chart);
+    }
+    fn assign_task(&mut self, ti: usize, start_day: i32) {
         assert!(self.is_available());
         self.assigned = Some((ti, start_day));
     }
-    fn unassign_task(&mut self, end_day: usize) -> usize {
+    fn unassign_task(&mut self, end_day: i32) -> usize {
         assert!(!self.is_available());
         let (ti, start_day) = self.assigned.unwrap();
         let elapsed_days = end_day - start_day + 1;
@@ -89,11 +103,83 @@ impl Resource {
     fn is_available(&self) -> bool {
         self.assigned.is_none()
     }
+    fn get_est_elapsed_days(&self, diff: &[i32]) -> i32 {
+        let skills_cnt = diff.len();
+        (0..skills_cnt)
+            .map(|k| (diff[k] - self.skills[k]).max(0))
+            .sum::<i32>()
+            .max(1)
+    }
+    fn calc_skills_loss_by_history(&self, diffs: &[Vec<i32>]) -> i32 {
+        let mut loss = 0;
+        for &(ti, elapsed_days) in &self.history {
+            let diff = &diffs[ti];
+            loss += (elapsed_days - self.get_est_elapsed_days(diff)).abs();
+        }
+        loss
+    }
+    fn optimize_skills(&mut self, diffs: &[Vec<i32>], annealer: &mut Annealer) {
+        let skills_cnt = self.skills.len();
+        let mut cur_loss = self.calc_skills_loss_by_history(diffs);
+        let mut best_loss = cur_loss;
+
+        let mut fit_skills = self.skills.clone();
+        for _ in 0..self.history.len() * 100 {
+            let k = self.rng.gen_range(0, skills_cnt);
+            let cur_v = self.skills[k];
+            let new_v = self.rng.gen_range(20.0, 60.0)
+                * f64::abs(self.rng.sample(rand_distr::StandardNormal));
+            self.skills[k] = new_v as i32 / 3;
+            let new_loss = self.calc_skills_loss_by_history(diffs);
+
+            if new_loss < best_loss {
+                best_loss = new_loss;
+                fit_skills = self.skills.clone();
+            }
+
+            if annealer.accept((cur_loss - new_loss) as f64) {
+                cur_loss = new_loss;
+            } else {
+                self.skills[k] = cur_v;
+            }
+        }
+        self.skills = fit_skills;
+    }
+}
+
+struct Annealer {
+    t0: f64,
+    t1: f64,
+    temperture: f64,
+    rng: Mcg128Xsl64,
+}
+
+impl Annealer {
+    fn new(t0: f64, t1: f64) -> Self {
+        let seed = 71;
+        let rng = rand_pcg::Pcg64Mcg::seed_from_u64(seed);
+        Self {
+            t0,
+            t1,
+            temperture: t0,
+            rng,
+        }
+    }
+
+    fn set_temperture(&mut self, tau: f64) {
+        self.temperture = self.t0.powf(1.0 - tau) * self.t1.powf(tau);
+    }
+
+    fn accept(&mut self, delta: f64) -> bool {
+        if delta >= 0. {
+            return true;
+        }
+        let prob = (delta / self.temperture).exp();
+        self.rng.gen_bool(prob)
+    }
 }
 
 fn main() {
-    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(71);
-
     let mut input_line = String::new();
     stdin().read_line(&mut input_line).unwrap();
     let inputs = input_line.split(' ').collect::<Vec<_>>();
@@ -126,9 +212,10 @@ fn main() {
         edges.push(edge);
     }
 
-    let mut resources = (0..m)
-        .map(|i| Resource::new(i, k, &mut rng))
-        .collect::<Vec<_>>();
+    let mut resources = (0..m).map(|i| Resource::new(i, k)).collect::<Vec<_>>();
+    for res in resources.iter() {
+        res.print_skills();
+    }
 
     let mut tasks = (0..n).map(Task::new).collect::<Vec<_>>();
     for &(u, v) in &edges {
@@ -137,17 +224,10 @@ fn main() {
     }
 
     let mut cur_day = 0;
+    let mut annealer = Annealer::new(3000.0, 600.0);
     loop {
-        // Output estimated skill
-        for (i, res) in resources.iter().enumerate() {
-            let skill_chart = res
-                .skills
-                .iter()
-                .map(|x| x.to_string())
-                .collect::<Vec<_>>()
-                .join(" ");
-            println!("#s {} {}", i + 1, skill_chart);
-        }
+        let tau = cur_day as f64 / DAY_LIMIT as f64;
+        annealer.set_temperture(tau);
 
         // dbg!(day, &resources, &tasks);
         // Assign tasks
@@ -202,6 +282,8 @@ fn main() {
             for ti in nxt_task_tis {
                 tasks[ti].pre_task_cnt -= 1;
             }
+            resources[ri].optimize_skills(&diffs, &mut annealer);
+            resources[ri].print_skills();
         }
         cur_day += 1;
     }
