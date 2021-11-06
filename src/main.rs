@@ -75,8 +75,8 @@ fn main() {
     stdin().read_line(&mut input_line).unwrap();
     let inputs = input_line.split(' ').collect::<Vec<_>>();
     let n = parse_input!(inputs[0], usize);
-    let _k = parse_input!(inputs[1], usize);
-    let m = parse_input!(inputs[2], usize);
+    let m = parse_input!(inputs[1], usize);
+    let _k = parse_input!(inputs[2], usize);
     let r = parse_input!(inputs[3], usize);
 
     // Input diffs
