@@ -1,3 +1,4 @@
+use rand::prelude::*;
 use std::io::stdin;
 
 macro_rules! parse_input {
@@ -71,6 +72,8 @@ impl Resource {
 }
 
 fn main() {
+    let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(71);
+
     let mut input_line = String::new();
     stdin().read_line(&mut input_line).unwrap();
     let inputs = input_line.split(' ').collect::<Vec<_>>();
@@ -109,12 +112,14 @@ fn main() {
     loop {
         // dbg!(day, &resources, &tasks);
         // Assign tasks
-        let ris = resources
+        let mut ris = resources
             .iter()
             .enumerate()
             .filter(|(_, r)| r.is_available())
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
+        ris.shuffle(&mut rng);
+
         let tis = tasks
             .iter()
             .enumerate()
