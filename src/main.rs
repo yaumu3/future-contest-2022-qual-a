@@ -124,12 +124,11 @@ impl Resource {
         let mut best_loss = cur_loss;
 
         let mut fit_skills = self.skills.clone();
-        for _ in 0..self.history.len() * 100 {
+        for _ in 0..1000 {
             let k = self.rng.gen_range(0, skills_cnt);
             let cur_v = self.skills[k];
-            let new_v = self.rng.gen_range(20.0, 60.0)
-                * f64::abs(self.rng.sample(rand_distr::StandardNormal));
-            self.skills[k] = new_v as i32 / 3;
+            let new_v = self.rng.gen_range(0, 20);
+            self.skills[k] = new_v;
             let new_loss = self.calc_skills_loss_by_history(diffs);
 
             if new_loss < best_loss {
