@@ -247,18 +247,10 @@ fn main() {
         let mut assign_cmd = vec![];
         while !ris.is_empty() && !tis.is_empty() {
             let ti = tis.pop().unwrap();
-            let ri = {
-                if annealer.accept(-1.0) {
-                    // Assign resource a task with the shortest estimated days required
-                    *ris.iter()
-                        .min_by_key(|&&ri| resources[ri].get_est_elapsed_days(&diffs[ti]))
-                        .unwrap()
-                } else {
-                    *ris.iter()
-                        .max_by_key(|&&ri| resources[ri].history.len())
-                        .unwrap()
-                }
-            };
+            let ri = *ris
+                .iter()
+                .min_by_key(|&&ri| resources[ri].get_est_elapsed_days(&diffs[ti]))
+                .unwrap();
             resources[ri].assign_task(ti, cur_day);
             tasks[ti].begin();
             assign_cmd.push(ri + 1);
