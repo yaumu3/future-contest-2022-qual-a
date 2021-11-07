@@ -12,15 +12,21 @@ macro_rules! parse_input {
 #[derive(Debug, Clone)]
 struct Task {
     id: usize,
+    diff: Vec<i32>,
+    diff_norm: i32,
     nxt_tis: Vec<usize>,
     pre_task_cnt: usize,
     is_locked: bool,
     is_done: bool,
 }
 impl Task {
-    fn new(id: usize) -> Self {
+    fn new(id: usize, diff: &[i32]) -> Self {
+        let diff_norm = diff.iter().map(|v| v * v).sum::<i32>();
+
         Self {
             id,
+            diff: diff.to_owned(),
+            diff_norm,
             nxt_tis: vec![],
             pre_task_cnt: 0,
             is_locked: false,
@@ -216,7 +222,7 @@ fn main() {
         res.print_skills();
     }
 
-    let mut tasks = (0..n).map(Task::new).collect::<Vec<_>>();
+    let mut tasks = (0..n).map(|i| Task::new(i, &diffs[i])).collect::<Vec<_>>();
     for &(u, v) in &edges {
         tasks[u].nxt_tis.push(v);
         tasks[v].pre_task_cnt += 1;
@@ -242,7 +248,7 @@ fn main() {
             .filter(|(_, t)| t.is_available())
             .map(|(i, _)| i)
             .collect::<Vec<_>>();
-        tis.sort_by_key(|&ti| tasks[ti].nxt_tis.len());
+        tis.sort_by_key(|&ti| (tasks[ti].nxt_tis.len(), tasks[ti].diff_norm));
 
         let mut assign_cmd = vec![];
         while !ris.is_empty() && !tis.is_empty() {
