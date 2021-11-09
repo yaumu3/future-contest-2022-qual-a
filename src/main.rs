@@ -253,35 +253,96 @@ fn main() {
         tasks[v].pre_task_cnt += 1;
     }
 
+    let mut ests = vec![vec![0; m]; n];
+    for (i, t) in tasks.iter().enumerate() {
+        for (j, r) in resources.iter().enumerate() {
+            ests[i][j] = r.get_est_elapsed_days(&t.diff);
+        }
+    }
+
     let mut cur_day = 0;
     let mut annealer = Annealer::new(3000.0, 600.0);
+    let mut rng = rand_pcg::Mcg128Xsl64::seed_from_u64(37);
     loop {
         let tau = cur_day as f64 / (DAY_LIMIT - 1) as f64;
         annealer.set_temperture(tau);
 
         // Queue tasks
-        let mut tis = tasks
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| t.is_available())
-            .map(|(i, _)| i)
+        let mut tis = (0..n)
+            .filter(|&ti| tasks[ti].is_available())
+            .map(|ti| Some(ti))
             .collect::<Vec<_>>();
-        tis.sort_by_key(|&ti| (tasks[ti].nxt_tis.len(), tasks[ti].diff_norm));
+        let mut ris = (0..m)
+            .filter(|&ri| resources[ri].is_free())
+            .map(|ri| Some(ri))
+            .collect::<Vec<_>>();
 
-        while !tis.is_empty() {
-            let ti = tis.pop().unwrap();
-            let ri = (0..m)
-                .filter(|&ri| resources[ri].is_free())
-                .min_by_key(|&ri| resources[ri].get_est_elapsed_days(&tasks[ti].diff));
-            match ri {
-                Some(ri) => {
-                    resources[ri].queue_task(ti);
-                    tasks[ti].lock();
+        let mut best_ris = ris.clone();
+        if !tis.is_empty() && !ris.is_empty() {
+            while ris.len() < tis.len() {
+                ris.push(None);
+            }
+            while ris.len() > tis.len() {
+                tis.push(None);
+            }
+            assert_eq!(ris.len(), tis.len());
+
+            let mut cur = 0;
+            let mut best = 0;
+            let mut anl = Annealer::new(200.0, 10.0);
+
+            for i in 0..10000 {
+                anl.set_temperture(i as f64 / 10000.0);
+                let fm = rng.gen_range(0, tis.len());
+                let to = rng.gen_range(0, tis.len());
+                if fm == to {
+                    continue;
                 }
-                None => {
-                    break;
+                let delta_sum = {
+                    match (tis[fm], tis[to], ris[fm], ris[to]) {
+                        (Some(tifm), Some(tito), Some(rifm), None) => {
+                            -ests[tifm][rifm] + ests[tito][rifm]
+                        }
+                        (Some(tifm), Some(tito), None, Some(rito)) => {
+                            -ests[tito][rito] + ests[tifm][rito]
+                        }
+                        (Some(tifm), Some(tito), Some(rifm), Some(rito)) => {
+                            -ests[tifm][rifm] - ests[tito][rito]
+                                + ests[tifm][rito]
+                                + ests[tito][rifm]
+                        }
+                        (Some(tifm), None, Some(rifm), Some(rito)) => {
+                            -ests[tifm][rifm] + ests[tifm][rito]
+                        }
+                        (None, Some(tito), Some(rifm), Some(rito)) => {
+                            -ests[tito][rito] + ests[tito][rifm]
+                        }
+                        (Some(_), Some(_), None, None) => 0,
+                        (None, None, Some(_), Some(_)) => 0,
+                        _ => unreachable!(),
+                    }
+                };
+                ris.swap(fm, to);
+                cur += delta_sum;
+                if cur < best {
+                    best_ris = ris.clone();
+                    best = cur;
+                }
+                if !anl.accept(-delta_sum as f64) {
+                    ris.swap(fm, to);
+                    cur -= delta_sum;
                 }
             }
+        }
+
+        for (&ti, &ri) in tis.iter().zip(best_ris.iter()) {
+            if ti.is_none() || ri.is_none() {
+                continue;
+            }
+            let ri = ri.unwrap();
+            let ti = ti.unwrap();
+            resources[ri].queue_task(ti);
+            tasks[ti].lock();
         }
 
         // Start tasks
@@ -322,6 +383,9 @@ fn main() {
                 tasks[ti].pre_task_cnt -= 1;
             }
             resources[ri].optimize_skills(&diffs, &mut annealer);
+            for t in &tasks {
+                ests[t.id][ri] = resources[ri].get_est_elapsed_days(&t.diff);
+            }
             resources[ri].print_skills();
         }
         cur_day += 1;
