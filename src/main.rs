@@ -108,6 +108,9 @@ impl Resource {
     fn is_busy(&self) -> bool {
         self.working_on.is_some()
     }
+    fn is_free(&self) -> bool {
+        self.working_on.is_none() && self.queue.is_empty()
+    }
     fn queue_task(&mut self, ti: usize) {
         self.queue.push_back(ti);
     }
@@ -268,8 +271,8 @@ fn main() {
         while !tis.is_empty() {
             let ti = tis.pop().unwrap();
             let ri = (0..m)
-                .filter(|&ri| resources[ri].queue.is_empty() && !resources[ri].is_busy())
-                .min_by_key(|&ri| resources[ri].get_est_elapsed_days(&diffs[ti]));
+                .filter(|&ri| resources[ri].is_free())
+                .min_by_key(|&ri| resources[ri].get_est_elapsed_days(&tasks[ti].diff));
             match ri {
                 Some(ri) => {
                     resources[ri].queue_task(ti);
