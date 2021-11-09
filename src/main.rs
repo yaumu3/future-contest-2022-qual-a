@@ -1,5 +1,6 @@
 use rand::prelude::*;
 use rand_pcg::Mcg128Xsl64;
+use std::collections::VecDeque;
 use std::io::stdin;
 const DAY_LIMIT: i32 = 2000;
 
@@ -36,8 +37,15 @@ impl Task {
     fn is_available(&self) -> bool {
         !self.is_locked && !self.is_done && self.pre_task_cnt == 0
     }
-    fn begin(&mut self) {
-        assert!(self.is_available());
+    fn is_ready(&self) -> bool {
+        self.is_locked && !self.is_done && self.pre_task_cnt == 0
+    }
+    fn start(&mut self) {
+        assert!(self.is_ready());
+        self.is_locked = true;
+    }
+    fn lock(&mut self) {
+        assert!(!self.is_locked);
         self.is_locked = true;
     }
     fn unlock(&mut self) {
@@ -57,8 +65,10 @@ struct Resource {
     rng: Mcg128Xsl64,
     id: usize,
     skills: Vec<i32>,
+    // ti
+    queue: VecDeque<usize>,
     // ti, start_day
-    assigned: Option<(usize, i32)>,
+    working_on: Option<(usize, i32)>,
     // ti, elapsed_days
     history: Vec<(usize, i32)>,
 }
@@ -81,7 +91,8 @@ impl Resource {
             rng,
             id,
             skills: s,
-            assigned: None,
+            queue: VecDeque::new(),
+            working_on: None,
             history: vec![],
         }
     }
@@ -94,20 +105,31 @@ impl Resource {
             .join(" ");
         println!("#s {} {}", self.id + 1, skill_chart);
     }
-    fn assign_task(&mut self, ti: usize, start_day: i32) {
-        assert!(self.is_available());
-        self.assigned = Some((ti, start_day));
+    fn is_busy(&self) -> bool {
+        self.working_on.is_some()
     }
-    fn unassign_task(&mut self, end_day: i32) -> usize {
-        assert!(!self.is_available());
-        let (ti, start_day) = self.assigned.unwrap();
+    fn queue_task(&mut self, ti: usize) {
+        self.queue.push_back(ti);
+    }
+    fn start_task(&mut self, start_day: i32) -> Option<usize> {
+        if self.is_busy() {
+            return None;
+        }
+        match self.queue.pop_front() {
+            Some(ti) => {
+                self.working_on = Some((ti, start_day));
+                Some(ti)
+            }
+            _ => None,
+        }
+    }
+    fn complete_task(&mut self, end_day: i32) -> usize {
+        assert!(self.is_busy());
+        let (ti, start_day) = self.working_on.unwrap();
         let elapsed_days = end_day - start_day + 1;
         self.history.push((ti, elapsed_days));
-        self.assigned = None;
+        self.working_on = None;
         ti
-    }
-    fn is_available(&self) -> bool {
-        self.assigned.is_none()
     }
     fn get_est_elapsed_days(&self, diff: &[i32]) -> i32 {
         let skills_cnt = diff.len();
@@ -234,14 +256,7 @@ fn main() {
         let tau = cur_day as f64 / (DAY_LIMIT - 1) as f64;
         annealer.set_temperture(tau);
 
-        // Assign tasks
-        let mut ris = resources
-            .iter()
-            .enumerate()
-            .filter(|(_, r)| r.is_available())
-            .map(|(i, _)| i)
-            .collect::<Vec<_>>();
-
+        // Queue tasks
         let mut tis = tasks
             .iter()
             .enumerate()
@@ -250,19 +265,31 @@ fn main() {
             .collect::<Vec<_>>();
         tis.sort_by_key(|&ti| (tasks[ti].nxt_tis.len(), tasks[ti].diff_norm));
 
-        let mut assign_cmd = vec![];
-        while !ris.is_empty() && !tis.is_empty() {
+        while !tis.is_empty() {
             let ti = tis.pop().unwrap();
-            let ri = *ris
-                .iter()
-                .min_by_key(|&&ri| resources[ri].get_est_elapsed_days(&diffs[ti]))
-                .unwrap();
-            resources[ri].assign_task(ti, cur_day);
-            tasks[ti].begin();
-            assign_cmd.push(ri + 1);
-            assign_cmd.push(ti + 1);
-            let idx = ris.iter().position(|&rii| rii == ri).unwrap();
-            ris.remove(idx);
+            let ri = (0..m)
+                .filter(|&ri| resources[ri].queue.is_empty() && !resources[ri].is_busy())
+                .min_by_key(|&ri| resources[ri].get_est_elapsed_days(&diffs[ti]));
+            match ri {
+                Some(ri) => {
+                    resources[ri].queue_task(ti);
+                    tasks[ti].lock();
+                }
+                None => {
+                    break;
+                }
+            }
+        }
+
+        // Start tasks
+        let mut assign_cmd = vec![];
+        for r in &mut resources {
+            let ti = r.start_task(cur_day);
+            if let Some(ti) = ti {
+                tasks[ti].start();
+                assign_cmd.push(r.id + 1);
+                assign_cmd.push(ti + 1);
+            }
         }
         let assign_len = assign_cmd.len() / 2;
         let assign_cmd = assign_cmd
@@ -285,7 +312,7 @@ fn main() {
         }
         for &ri in &freed_resources[1..] {
             let ri = ri as usize - 1;
-            let completed_ti = resources[ri].unassign_task(cur_day);
+            let completed_ti = resources[ri].complete_task(cur_day);
             tasks[completed_ti].unlock();
             let nxt_task_tis = tasks[completed_ti].complete();
             for ti in nxt_task_tis {
