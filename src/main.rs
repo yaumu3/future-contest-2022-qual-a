@@ -302,7 +302,6 @@ fn main() {
             ris.push(pre_ris.pop().unwrap());
         }
 
-        let mut best_ris = ris.clone();
         if !tis.is_empty() && !ris.is_empty() {
             while ris.len() < tis.len() {
                 ris.push(None);
@@ -312,12 +311,7 @@ fn main() {
             }
             assert_eq!(ris.len(), tis.len());
 
-            let mut cur = 0;
-            let mut best = 0;
-            let mut anl = Annealer::new(0.0, 0.0);
-
-            for i in 0..20000 {
-                anl.set_temperture(i as f64 / 20000.0);
+            for _ in 0..20000 {
                 let fm = rng.gen_range(0, tis.len());
                 let to = rng.gen_range(0, tis.len());
                 if fm == to {
@@ -347,20 +341,13 @@ fn main() {
                         _ => unreachable!(),
                     }
                 };
-                ris.swap(fm, to);
-                cur += delta_sum;
-                if cur < best {
-                    best_ris = ris.clone();
-                    best = cur;
-                }
-                if !anl.accept(-delta_sum as f64) {
+                if delta_sum < 0 {
                     ris.swap(fm, to);
-                    cur -= delta_sum;
                 }
             }
         }
 
-        for (&ti, &ri) in tis.iter().zip(best_ris.iter()) {
+        for (&ti, &ri) in tis.iter().zip(ris.iter()) {
             if ti.is_none() || ri.is_none() {
                 continue;
             }
