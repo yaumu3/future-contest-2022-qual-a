@@ -262,7 +262,7 @@ fn main() {
     }
 
     let mut cur_day = 0;
-    let mut annealer = Annealer::new(3000.0, 600.0);
+    let mut annealer = Annealer::new(0.0, 0.0);
     let mut rng = rand_pcg::Mcg128Xsl64::seed_from_u64(37);
     loop {
         let tau = cur_day as f64 / (DAY_LIMIT - 1) as f64;
@@ -314,7 +314,7 @@ fn main() {
 
             let mut cur = 0;
             let mut best = 0;
-            let mut anl = Annealer::new(200.0, 10.0);
+            let mut anl = Annealer::new(0.0, 0.0);
 
             for i in 0..10000 {
                 anl.set_temperture(i as f64 / 10000.0);
