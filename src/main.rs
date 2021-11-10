@@ -271,7 +271,7 @@ fn main() {
         // Queue tasks
         let mut tis = (0..n)
             .filter(|&ti| tasks[ti].is_available())
-            .map(|ti| Some(ti))
+            .map(Some)
             .collect::<Vec<_>>();
         tis.sort_by_key(|&ti| {
             Reverse((
@@ -281,7 +281,7 @@ fn main() {
         });
         let mut pre_ris = (0..m)
             .filter(|&ri| resources[ri].is_free())
-            .map(|ri| Some(ri))
+            .map(Some)
             .collect::<Vec<_>>();
         let mut ris = vec![];
         for &ti in &tis {
