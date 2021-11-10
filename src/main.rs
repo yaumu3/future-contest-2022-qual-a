@@ -156,7 +156,7 @@ impl Resource {
         let mut best_loss = cur_loss;
 
         let mut fit_skills = self.skills.clone();
-        for _ in 0..1000 {
+        for _ in 0..2000 {
             let k = self.rng.gen_range(0, skills_cnt);
             let cur_v = self.skills[k];
             let new_v = self.rng.gen_range(0, 20);
@@ -316,8 +316,8 @@ fn main() {
             let mut best = 0;
             let mut anl = Annealer::new(0.0, 0.0);
 
-            for i in 0..10000 {
-                anl.set_temperture(i as f64 / 10000.0);
+            for i in 0..20000 {
+                anl.set_temperture(i as f64 / 20000.0);
                 let fm = rng.gen_range(0, tis.len());
                 let to = rng.gen_range(0, tis.len());
                 if fm == to {
