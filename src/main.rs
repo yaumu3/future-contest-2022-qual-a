@@ -1,5 +1,6 @@
 use rand::prelude::*;
 use rand_pcg::Mcg128Xsl64;
+use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::io::stdin;
 const DAY_LIMIT: i32 = 2000;
@@ -272,10 +273,34 @@ fn main() {
             .filter(|&ti| tasks[ti].is_available())
             .map(|ti| Some(ti))
             .collect::<Vec<_>>();
-        let mut ris = (0..m)
+        tis.sort_by_key(|&ti| {
+            Reverse((
+                tasks[ti.unwrap()].nxt_tis.len(),
+                tasks[ti.unwrap()].diff_norm,
+            ))
+        });
+        let mut pre_ris = (0..m)
             .filter(|&ri| resources[ri].is_free())
             .map(|ri| Some(ri))
             .collect::<Vec<_>>();
+        let mut ris = vec![];
+        for &ti in &tis {
+            if pre_ris.is_empty() {
+                break;
+            }
+            let ri = *pre_ris
+                .iter()
+                .min_by_key(|&ri| {
+                    resources[ri.unwrap()].get_est_elapsed_days(&tasks[ti.unwrap()].diff)
+                })
+                .unwrap();
+            ris.push(ri);
+            let idx = pre_ris.iter().position(|&rii| rii == ri).unwrap();
+            pre_ris.remove(idx);
+        }
+        while !pre_ris.is_empty() {
+            ris.push(pre_ris.pop().unwrap());
+        }
 
         let mut best_ris = ris.clone();
         if !tis.is_empty() && !ris.is_empty() {
